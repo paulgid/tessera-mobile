@@ -1,5 +1,8 @@
 # Tessera Mobile - Development Guide
 
+> **Note**: This is part of the Tessera multi-repository workspace.  
+> For workspace overview and cross-repo operations, see `/workspace/canvas/CLAUDE.md`
+
 ## Development Environment
 
 **Primary Development**: Linux with local Flutter installation
