@@ -1,7 +1,8 @@
 # Tessera Mobile - Development Guide
 
 > **Note**: This is part of the Tessera multi-repository workspace.  
-> For workspace overview and cross-repo operations, see `/workspace/canvas/CLAUDE.md`
+> For workspace overview and cross-repo operations, see `$TESSERA_WORKSPACE/CLAUDE.md`  
+> Default workspace: `/workspace/canvas`
 
 ## Development Environment
 
