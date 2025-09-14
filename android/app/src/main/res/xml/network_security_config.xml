@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Allow cleartext traffic for development -->
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- Android emulator localhost mapping -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <!-- Standard localhost for testing -->
+        <domain includeSubdomains="false">localhost</domain>
+        <!-- Local network IPs for testing -->
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <!-- Development server IPs -->
+        <domain includeSubdomains="false">192.168.0.1</domain>
+        <domain includeSubdomains="false">192.168.1.1</domain>
+    </domain-config>
+    
+    <!-- Base configuration for production -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <!-- Trust preinstalled CAs for production -->
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+    
+    <!-- Debug overrides (only active in debug builds) -->
+    <debug-overrides>
+        <trust-anchors>
+            <!-- Additionally trust user-added CAs in debug builds -->
+            <certificates src="user"/>
+            <certificates src="system"/>
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>

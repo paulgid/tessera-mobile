@@ -48,6 +48,7 @@ dependencies:
   # Platform
   battery_plus: ^5.0.0
   device_info_plus: ^9.1.0
+  package_info_plus: ^4.2.0
   
   # UI Components
   cupertino_icons: ^1.0.8

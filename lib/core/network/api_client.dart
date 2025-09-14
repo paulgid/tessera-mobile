@@ -1,18 +1,17 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import '../config/network_config.dart';
 
 class ApiClient {
-  static const String _defaultBaseUrl = 'http://localhost:8081';
-  
   late final Dio _dio;
   final String baseUrl;
   
-  ApiClient({String? baseUrl}) : baseUrl = baseUrl ?? _defaultBaseUrl {
+  ApiClient({String? baseUrl}) : baseUrl = baseUrl ?? NetworkConfig.getBaseUrl() {
     _dio = Dio(BaseOptions(
       baseUrl: this.baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
+      connectTimeout: NetworkConfig.getConnectionTimeout(),
+      receiveTimeout: NetworkConfig.getReceiveTimeout(),
       headers: {
         'Content-Type': 'application/json',
       },

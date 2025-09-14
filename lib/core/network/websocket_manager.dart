@@ -5,16 +5,15 @@ import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/game_update.dart';
+import '../config/network_config.dart';
 
 class WebSocketManager {
-  static const String _defaultHost = 'localhost:8081';
-  
   WebSocketChannel? _channel;
   final StreamController<GameUpdate> _updateController = StreamController.broadcast();
   final StreamController<ConnectionStatus> _statusController = StreamController.broadcast();
   
   String _mosaicId = '';
-  String _host = _defaultHost;
+  String _baseWebSocketUrl = NetworkConfig.getWebSocketUrl();
   Timer? _reconnectTimer;
   Timer? _pingTimer;
   int _reconnectAttempts = 0;
@@ -47,9 +46,9 @@ class WebSocketManager {
     });
   }
   
-  Future<void> connect(String mosaicId, {String? host}) async {
+  Future<void> connect(String mosaicId, {String? baseWebSocketUrl}) async {
     _mosaicId = mosaicId;
-    _host = host ?? _defaultHost;
+    _baseWebSocketUrl = baseWebSocketUrl ?? NetworkConfig.getWebSocketUrl();
     _intentionalDisconnect = false;
     
     await _establishConnection();
@@ -61,7 +60,7 @@ class WebSocketManager {
     try {
       _statusController.add(ConnectionStatus.connecting);
       
-      final uri = Uri.parse('ws://$_host/ws?mosaic_id=$_mosaicId');
+      final uri = Uri.parse('$_baseWebSocketUrl/ws?mosaic_id=$_mosaicId');
       _channel = WebSocketChannel.connect(uri);
       
       await _channel!.ready;
@@ -78,7 +77,7 @@ class WebSocketManager {
         cancelOnError: false,
       );
       
-      debugPrint('WebSocket connected to $_host for mosaic $_mosaicId');
+      debugPrint('WebSocket connected to $_baseWebSocketUrl for mosaic $_mosaicId');
     } catch (e) {
       debugPrint('WebSocket connection failed: $e');
       _handleError(e);
@@ -117,11 +116,8 @@ class WebSocketManager {
     
     _reconnectTimer?.cancel();
     
-    // Exponential backoff with max delay
-    final delay = min(
-      Duration(seconds: pow(2, _reconnectAttempts).toInt()),
-      const Duration(seconds: 30),
-    );
+    // Platform-aware exponential backoff with max delay
+    final delay = NetworkConfig.getReconnectDelay(_reconnectAttempts);
     
     _reconnectAttempts++;
     debugPrint('Scheduling reconnect attempt $_reconnectAttempts in ${delay.inSeconds}s');
@@ -138,7 +134,8 @@ class WebSocketManager {
   
   void _startPingTimer() {
     _pingTimer?.cancel();
-    _pingTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    final pingInterval = NetworkConfig.getWebSocketPingInterval();
+    _pingTimer = Timer.periodic(pingInterval, (_) {
       if (isConnected) {
         sendMessage({'type': 'ping'});
       }
