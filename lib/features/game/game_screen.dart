@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/game_update.dart';
 import '../../core/models/tile.dart';
 import '../../core/models/team.dart';
+import '../../core/network/websocket_manager.dart';
 import '../../providers/game_provider.dart';
 import 'mosaic_painter.dart';
 

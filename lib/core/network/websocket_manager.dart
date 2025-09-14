@@ -26,7 +26,7 @@ class WebSocketManager {
   bool _reducedQuality = false;
   
   // Connectivity monitoring
-  late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
+  late StreamSubscription<ConnectivityResult> _connectivitySubscription;
   
   Stream<GameUpdate> get updates => _updateController.stream;
   Stream<ConnectionStatus> get status => _statusController.stream;
@@ -37,8 +37,8 @@ class WebSocketManager {
   }
   
   void _initConnectivityMonitoring() {
-    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((result) {
-      if (result.contains(ConnectivityResult.none)) {
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((ConnectivityResult result) {
+      if (result == ConnectivityResult.none) {
         _handleDisconnect();
       } else if (!isConnected && !_intentionalDisconnect) {
         _reconnect();

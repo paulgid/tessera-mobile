@@ -11,9 +11,9 @@ class ConnectionMonitor {
   ConnectionMonitor._();
   
   final Connectivity _connectivity = Connectivity();
-  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
   
-  List<ConnectivityResult> _connectionStatus = [ConnectivityResult.none];
+  ConnectivityResult _connectionStatus = ConnectivityResult.none;
   ConnectionQuality _quality = ConnectionQuality.poor;
   int _latency = 0;
   bool _isInitialized = false;
@@ -23,15 +23,15 @@ class ConnectionMonitor {
   final List<int> _latencyHistory = [];
   final int _maxLatencyHistory = 10;
   
-  List<ConnectivityResult> get connectionStatus => _connectionStatus;
+  ConnectivityResult get connectionStatus => _connectionStatus;
   ConnectionQuality get quality => _quality;
   int get averageLatency => _latency;
   bool get isInitialized => _isInitialized;
   
-  bool get hasConnection => !_connectionStatus.contains(ConnectivityResult.none);
-  bool get hasWifi => _connectionStatus.contains(ConnectivityResult.wifi);
-  bool get hasMobile => _connectionStatus.contains(ConnectivityResult.mobile);
-  bool get hasEthernet => _connectionStatus.contains(ConnectivityResult.ethernet);
+  bool get hasConnection => _connectionStatus != ConnectivityResult.none;
+  bool get hasWifi => _connectionStatus == ConnectivityResult.wifi;
+  bool get hasMobile => _connectionStatus == ConnectivityResult.mobile;
+  bool get hasEthernet => _connectionStatus == ConnectivityResult.ethernet;
   
   /// Initialize connection monitoring
   Future<void> initialize() async {
@@ -59,7 +59,7 @@ class ConnectionMonitor {
     }
   }
   
-  void _onConnectivityChanged(List<ConnectivityResult> result) {
+  void _onConnectivityChanged(ConnectivityResult result) {
     debugPrint('Connectivity changed: $result');
     
     // Immediate quality check on connectivity change

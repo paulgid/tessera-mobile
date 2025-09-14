@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/models/game_update.dart';
 import '../core/models/tile.dart';
@@ -57,6 +58,22 @@ class GameState {
   }
 }
 
+// Helper function to get team color
+Color _getTeamColor(int teamId) {
+  switch (teamId) {
+    case 1:
+      return const Color(0xFFFF6B6B); // Red
+    case 2:
+      return const Color(0xFF4ECDC4); // Blue
+    case 3:
+      return const Color(0xFF95E77E); // Green
+    case 4:
+      return const Color(0xFFFFE66D); // Yellow
+    default:
+      return Colors.grey;
+  }
+}
+
 // Game state notifier
 class GameNotifier extends StateNotifier<GameState> {
   final WebSocketManager _wsManager;
@@ -104,7 +121,7 @@ class GameNotifier extends StateNotifier<GameState> {
               .map((entry) => Team(
                     id: entry.key,
                     name: 'Team ${entry.key}',
-                    color: Team._getTeamColor(entry.key),
+                    color: _getTeamColor(entry.key),
                     tileCount: entry.value,
                     percentage: (entry.value / (state.mosaicWidth * state.mosaicHeight)) * 100,
                   ))
