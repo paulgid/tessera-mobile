@@ -109,8 +109,22 @@ final mosaicActionsProvider =
       return MosaicActionsNotifier(service, ref);
     });
 
+// Flag to disable auto-refresh in tests
+bool _enableAutoRefresh = true;
+
+// Method to control auto-refresh for testing
+void setAutoRefreshEnabled(bool enabled) {
+  _enableAutoRefresh = enabled;
+}
+
 // Auto-refresh provider for real-time updates
 final mosaicRefreshProvider = StreamProvider.autoDispose<void>((ref) async* {
+  if (!_enableAutoRefresh) {
+    // In test mode, return a single value and complete
+    yield null;
+    return;
+  }
+
   while (true) {
     await Future.delayed(const Duration(seconds: 2));
     ref.invalidate(mosaicsProvider);

@@ -11,9 +11,9 @@ void main() {
     setUpAll(() async {
       // Check if backend is available
       try {
-        final response = await http.get(
-          Uri.parse('http://localhost:8081/api/mosaics'),
-        ).timeout(const Duration(seconds: 2));
+        final response = await http
+            .get(Uri.parse('http://localhost:8081/api/mosaics'))
+            .timeout(const Duration(seconds: 2));
         backendAvailable = response.statusCode == 200;
       } catch (e) {
         backendAvailable = false;
