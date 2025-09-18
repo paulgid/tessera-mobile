@@ -18,13 +18,7 @@ Color _getTeamColorStatic(int teamId) {
   }
 }
 
-enum GamePhase {
-  idle,
-  claim,
-  formation,
-  assembly,
-  complete,
-}
+enum GamePhase { idle, claim, formation, assembly, complete }
 
 class GameUpdate {
   final String type;
@@ -97,12 +91,14 @@ class GameUpdate {
     if (teamsData is Map) {
       // Handle teams from metrics
       return teamsData.entries
-          .map((entry) => Team(
-                id: int.parse(entry.key),
-                name: 'Team ${entry.key}',
-                color: _getTeamColorStatic(int.parse(entry.key)),
-                tileCount: entry.value as int,
-              ))
+          .map(
+            (entry) => Team(
+              id: int.parse(entry.key),
+              name: 'Team ${entry.key}',
+              color: _getTeamColorStatic(int.parse(entry.key)),
+              tileCount: entry.value as int,
+            ),
+          )
           .toList();
     }
     return null;

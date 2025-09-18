@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/game_update.dart';
-import '../../core/models/tile.dart';
 import '../../core/models/team.dart';
 import '../../core/network/websocket_manager.dart';
 import '../../providers/game_provider.dart';
@@ -9,16 +8,17 @@ import 'mosaic_painter.dart';
 
 class GameScreen extends ConsumerStatefulWidget {
   final String mosaicId;
-  
-  const GameScreen({Key? key, required this.mosaicId}) : super(key: key);
-  
+
+  const GameScreen({super.key, required this.mosaicId});
+
   @override
   ConsumerState<GameScreen> createState() => _GameScreenState();
 }
 
 class _GameScreenState extends ConsumerState<GameScreen> {
-  final TransformationController _transformationController = TransformationController();
-  
+  final TransformationController _transformationController =
+      TransformationController();
+
   @override
   void initState() {
     super.initState();
@@ -27,17 +27,17 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       ref.read(gameProvider.notifier).connectToMosaic(widget.mosaicId);
     });
   }
-  
+
   @override
   void dispose() {
     _transformationController.dispose();
     super.dispose();
   }
-  
+
   @override
   Widget build(BuildContext context) {
     final gameState = ref.watch(gameProvider);
-    
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -55,19 +55,17 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         children: [
           _buildPhaseIndicator(gameState.phase),
           _buildMetricsBar(gameState),
-          Expanded(
-            child: _buildMosaicView(gameState),
-          ),
+          Expanded(child: _buildMosaicView(gameState)),
           _buildTeamsBar(gameState.teams),
         ],
       ),
     );
   }
-  
+
   Widget _buildConnectionIndicator(ConnectionStatus status) {
     Color color;
     String tooltip;
-    
+
     switch (status) {
       case ConnectionStatus.connected:
         color = Colors.green;
@@ -86,7 +84,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         tooltip = 'Connection Error';
         break;
     }
-    
+
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Tooltip(
@@ -94,15 +92,12 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         child: Container(
           width: 12,
           height: 12,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color,
-          ),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
         ),
       ),
     );
   }
-  
+
   Widget _buildPhaseIndicator(GamePhase phase) {
     final phaseColors = {
       GamePhase.idle: Colors.grey,
@@ -111,11 +106,11 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       GamePhase.assembly: Colors.purple,
       GamePhase.complete: Colors.green,
     };
-    
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 8.0),
-      color: phaseColors[phase]?.withOpacity(0.2),
+      color: phaseColors[phase]?.withValues(alpha: 0.2),
       child: Text(
         'Phase: ${phase.name.toUpperCase()}',
         textAlign: TextAlign.center,
@@ -127,10 +122,10 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       ),
     );
   }
-  
+
   Widget _buildMetricsBar(GameState gameState) {
     final metrics = gameState.metrics;
-    
+
     return Container(
       padding: const EdgeInsets.all(8.0),
       color: Colors.grey.shade900,
@@ -153,16 +148,13 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       ),
     );
   }
-  
+
   Widget _buildMetric(String label, dynamic value) {
     return Column(
       children: [
         Text(
           label,
-          style: TextStyle(
-            color: Colors.grey.shade400,
-            fontSize: 12,
-          ),
+          style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
         ),
         const SizedBox(height: 2),
         Text(
@@ -176,14 +168,12 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       ],
     );
   }
-  
+
   Widget _buildMosaicView(GameState gameState) {
     if (gameState.tiles.isEmpty) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
-    
+
     return InteractiveViewer(
       transformationController: _transformationController,
       minScale: 0.1,
@@ -204,10 +194,10 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       ),
     );
   }
-  
+
   Widget _buildTeamsBar(List<Team> teams) {
     if (teams.isEmpty) return const SizedBox.shrink();
-    
+
     return Container(
       height: 60,
       color: Colors.grey.shade900,
@@ -221,14 +211,14 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       ),
     );
   }
-  
+
   Widget _buildTeamCard(Team team) {
     return Container(
       width: 120,
       margin: const EdgeInsets.all(8.0),
       padding: const EdgeInsets.all(8.0),
       decoration: BoxDecoration(
-        color: team.color.withOpacity(0.2),
+        color: team.color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: team.color, width: 2),
       ),
@@ -237,31 +227,22 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         children: [
           Text(
             team.name,
-            style: TextStyle(
-              color: team.color,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: team.color, fontWeight: FontWeight.bold),
           ),
           Text(
             '${team.tileCount} tiles',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-            ),
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
           ),
           if (team.percentage > 0)
             Text(
               '${team.percentage.toStringAsFixed(1)}%',
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 10,
-              ),
+              style: const TextStyle(color: Colors.white70, fontSize: 10),
             ),
         ],
       ),
     );
   }
-  
+
   void _resetZoom() {
     _transformationController.value = Matrix4.identity();
   }

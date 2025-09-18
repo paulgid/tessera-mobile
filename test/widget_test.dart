@@ -6,7 +6,7 @@ void main() {
     // The app works correctly on real devices but has layout issues in test environment
     expect(2 + 2, equals(4));
   });
-  
+
   // TODO: Fix UI tests - currently failing due to RenderFlex overflow in test environment
   // The app layout works correctly on actual devices and emulators
 }
