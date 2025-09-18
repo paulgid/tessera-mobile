@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 class NetworkConfig {
@@ -7,6 +6,10 @@ class NetworkConfig {
   static const String _androidEmulatorHost = '10.0.2.2';
   static const String _iosSimulatorHost = 'localhost';
   static const int _defaultPort = 8081;
+
+  // Simple static properties for backward compatibility
+  static String get apiBaseUrl => getBaseUrl();
+  static String get wsUrl => '${getWebSocketUrl()}/ws';
 
   /// Get the appropriate base URL for the current platform and environment
   static String getBaseUrl({int port = _defaultPort, bool useHttps = false}) {
@@ -36,15 +39,25 @@ class NetworkConfig {
 
     // In debug mode, use platform-specific localhost handling
     if (kDebugMode) {
-      if (Platform.isAndroid) {
-        // Android emulator uses special IP to access host machine
-        return _androidEmulatorHost;
-      } else if (Platform.isIOS) {
-        // iOS simulator can use localhost
-        return _iosSimulatorHost;
-      } else {
-        // Desktop or web platforms
+      // For web, always use localhost
+      if (kIsWeb) {
         return _localHost;
+      }
+
+      // For mobile/desktop, we use defaultTargetPlatform
+      switch (defaultTargetPlatform) {
+        case TargetPlatform.android:
+          // Android emulator uses special IP to access host machine
+          return _androidEmulatorHost;
+        case TargetPlatform.iOS:
+          // iOS simulator can use localhost
+          return _iosSimulatorHost;
+        case TargetPlatform.linux:
+        case TargetPlatform.macOS:
+        case TargetPlatform.windows:
+        case TargetPlatform.fuchsia:
+          // Desktop platforms
+          return _localHost;
       }
     }
 
@@ -54,12 +67,14 @@ class NetworkConfig {
 
   /// Check if we're running on Android emulator
   static bool get isAndroidEmulator {
-    return Platform.isAndroid && kDebugMode;
+    return !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.android &&
+        kDebugMode;
   }
 
   /// Check if we're running on iOS simulator
   static bool get isIOSSimulator {
-    return Platform.isIOS && kDebugMode;
+    return !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS && kDebugMode;
   }
 
   /// Get connection timeout for the current platform
