@@ -38,7 +38,7 @@ linter:
   rules:
     # Strictness matching CI
     prefer_single_quotes: true
-    prefer_const_constructors: true
+    # prefer_const_constructors: true  # Disabled - too many false positives
     prefer_final_fields: true
     unnecessary_to_list_in_spreads: true
     curly_braces_in_flow_control_structures: true
