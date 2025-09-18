@@ -1,13 +1,24 @@
+import 'package:flutter/material.dart';
 import 'tile.dart';
 import 'team.dart';
 
-enum GamePhase {
-  idle,
-  claim,
-  formation,
-  assembly,
-  complete,
+// Helper function for team color
+Color _getTeamColorStatic(int teamId) {
+  switch (teamId) {
+    case 1:
+      return const Color(0xFFFF6B6B); // Red
+    case 2:
+      return const Color(0xFF4ECDC4); // Blue
+    case 3:
+      return const Color(0xFF95E77E); // Green
+    case 4:
+      return const Color(0xFFFFE66D); // Yellow
+    default:
+      return Colors.grey;
+  }
 }
+
+enum GamePhase { idle, claim, formation, assembly, complete }
 
 class GameUpdate {
   final String type;
@@ -80,12 +91,14 @@ class GameUpdate {
     if (teamsData is Map) {
       // Handle teams from metrics
       return teamsData.entries
-          .map((entry) => Team(
-                id: int.parse(entry.key),
-                name: 'Team ${entry.key}',
-                color: Team._getTeamColor(int.parse(entry.key)),
-                tileCount: entry.value as int,
-              ))
+          .map(
+            (entry) => Team(
+              id: int.parse(entry.key),
+              name: 'Team ${entry.key}',
+              color: _getTeamColorStatic(int.parse(entry.key)),
+              tileCount: entry.value as int,
+            ),
+          )
           .toList();
     }
     return null;

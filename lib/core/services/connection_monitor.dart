@@ -7,71 +7,75 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 class ConnectionMonitor {
   static ConnectionMonitor? _instance;
   static ConnectionMonitor get instance => _instance ??= ConnectionMonitor._();
-  
+
   ConnectionMonitor._();
-  
+
   final Connectivity _connectivity = Connectivity();
-  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
-  
-  List<ConnectivityResult> _connectionStatus = [ConnectivityResult.none];
+  StreamSubscription<ConnectivityResult>? _connectivitySubscription;
+
+  ConnectivityResult _connectionStatus = ConnectivityResult.none;
   ConnectionQuality _quality = ConnectionQuality.poor;
   int _latency = 0;
   bool _isInitialized = false;
-  
+
   // Quality monitoring
   Timer? _qualityTimer;
   final List<int> _latencyHistory = [];
   final int _maxLatencyHistory = 10;
-  
-  List<ConnectivityResult> get connectionStatus => _connectionStatus;
+
+  ConnectivityResult get connectionStatus => _connectionStatus;
   ConnectionQuality get quality => _quality;
   int get averageLatency => _latency;
   bool get isInitialized => _isInitialized;
-  
-  bool get hasConnection => !_connectionStatus.contains(ConnectivityResult.none);
-  bool get hasWifi => _connectionStatus.contains(ConnectivityResult.wifi);
-  bool get hasMobile => _connectionStatus.contains(ConnectivityResult.mobile);
-  bool get hasEthernet => _connectionStatus.contains(ConnectivityResult.ethernet);
-  
+
+  bool get hasConnection => _connectionStatus != ConnectivityResult.none;
+  bool get hasWifi => _connectionStatus == ConnectivityResult.wifi;
+  bool get hasMobile => _connectionStatus == ConnectivityResult.mobile;
+  bool get hasEthernet => _connectionStatus == ConnectivityResult.ethernet;
+
   /// Initialize connection monitoring
   Future<void> initialize() async {
     if (_isInitialized) return;
-    
+
     try {
       _connectionStatus = await _connectivity.checkConnectivity();
       await _measureInitialQuality();
-      
+
       // Monitor connectivity changes
-      _connectivitySubscription = _connectivity.onConnectivityChanged.listen((result) {
+      _connectivitySubscription = _connectivity.onConnectivityChanged.listen((
+        result,
+      ) {
         _connectionStatus = result;
         _onConnectivityChanged(result);
       });
-      
+
       // Start quality monitoring (every 30 seconds)
       _qualityTimer = Timer.periodic(const Duration(seconds: 30), (_) {
         _measureConnectionQuality();
       });
-      
+
       _isInitialized = true;
-      debugPrint('Connection monitor initialized - Status: $_connectionStatus, Quality: $_quality');
+      debugPrint(
+        'Connection monitor initialized - Status: $_connectionStatus, Quality: $_quality',
+      );
     } catch (e) {
       debugPrint('Failed to initialize connection monitor: $e');
     }
   }
-  
-  void _onConnectivityChanged(List<ConnectivityResult> result) {
+
+  void _onConnectivityChanged(ConnectivityResult result) {
     debugPrint('Connectivity changed: $result');
-    
+
     // Immediate quality check on connectivity change
     Timer(const Duration(seconds: 2), () {
       _measureConnectionQuality();
     });
   }
-  
+
   Future<void> _measureInitialQuality() async {
     await _measureConnectionQuality();
   }
-  
+
   Future<void> _measureConnectionQuality() async {
     if (!hasConnection) {
       _quality = ConnectionQuality.none;
@@ -79,35 +83,41 @@ class ConnectionMonitor {
       _latencyHistory.clear();
       return;
     }
-    
+
     try {
       final latency = await _measureLatency();
       _latency = latency;
-      
+
       // Track latency history for better quality assessment
       _latencyHistory.add(latency);
       if (_latencyHistory.length > _maxLatencyHistory) {
         _latencyHistory.removeAt(0);
       }
-      
+
       _quality = _calculateQuality();
-      debugPrint('Connection quality measured - Latency: ${latency}ms, Quality: $_quality');
+      debugPrint(
+        'Connection quality measured - Latency: ${latency}ms, Quality: $_quality',
+      );
     } catch (e) {
       debugPrint('Failed to measure connection quality: $e');
       _quality = ConnectionQuality.poor;
     }
   }
-  
+
   Future<int> _measureLatency() async {
     final stopwatch = Stopwatch()..start();
-    
+
     try {
       // Use different servers based on connection type for mobile optimization
       final host = hasWifi ? 'google.com' : '8.8.8.8';
-      final socket = await Socket.connect(host, 80, timeout: const Duration(seconds: 5));
+      final socket = await Socket.connect(
+        host,
+        80,
+        timeout: const Duration(seconds: 5),
+      );
       socket.destroy();
       stopwatch.stop();
-      
+
       return stopwatch.elapsedMilliseconds;
     } catch (e) {
       stopwatch.stop();
@@ -115,12 +125,13 @@ class ConnectionMonitor {
       return 5000;
     }
   }
-  
+
   ConnectionQuality _calculateQuality() {
     if (_latencyHistory.isEmpty) return ConnectionQuality.poor;
-    
-    final avgLatency = _latencyHistory.reduce((a, b) => a + b) / _latencyHistory.length;
-    
+
+    final avgLatency =
+        _latencyHistory.reduce((a, b) => a + b) / _latencyHistory.length;
+
     // Mobile-optimized quality thresholds
     if (hasWifi) {
       // WiFi quality thresholds
@@ -145,7 +156,7 @@ class ConnectionMonitor {
       return ConnectionQuality.terrible;
     }
   }
-  
+
   /// Get recommended update frequency based on connection quality
   Duration get recommendedUpdateInterval {
     switch (_quality) {
@@ -163,12 +174,12 @@ class ConnectionMonitor {
         return const Duration(seconds: 10);
     }
   }
-  
+
   /// Get recommended data compression settings
   bool get shouldCompressData {
     return _quality.index <= ConnectionQuality.fair.index || hasMobile;
   }
-  
+
   /// Get recommended connection timeout
   Duration get recommendedTimeout {
     if (hasMobile) {
@@ -199,25 +210,25 @@ class ConnectionMonitor {
       }
     }
   }
-  
+
   /// Check if connection is suitable for real-time gaming
   bool get isSuitableForRealTime {
     return _quality.index >= ConnectionQuality.fair.index && hasConnection;
   }
-  
+
   /// Get connection type description
   String get connectionDescription {
     if (!hasConnection) return 'No connection';
-    
+
     final types = <String>[];
     if (hasWifi) types.add('WiFi');
     if (hasMobile) types.add('Mobile');
     if (hasEthernet) types.add('Ethernet');
-    
+
     final typeStr = types.join(' + ');
     return '$typeStr (${_quality.name}, ${averageLatency}ms)';
   }
-  
+
   /// Dispose of resources
   void dispose() {
     _connectivitySubscription?.cancel();
@@ -228,10 +239,10 @@ class ConnectionMonitor {
 
 enum ConnectionQuality {
   none,
-  terrible,  // >500ms WiFi, >800ms mobile
-  poor,      // 200-500ms WiFi, 400-800ms mobile  
-  fair,      // 100-200ms WiFi, 200-400ms mobile
-  good,      // 50-100ms WiFi, 100-200ms mobile
+  terrible, // >500ms WiFi, >800ms mobile
+  poor, // 200-500ms WiFi, 400-800ms mobile
+  fair, // 100-200ms WiFi, 200-400ms mobile
+  good, // 50-100ms WiFi, 100-200ms mobile
   excellent, // <50ms WiFi, <100ms mobile
 }
 
@@ -252,7 +263,7 @@ extension ConnectionQualityExtension on ConnectionQuality {
         return 'Excellent';
     }
   }
-  
+
   /// Get quality as percentage (0-100)
   int get percentage {
     switch (this) {

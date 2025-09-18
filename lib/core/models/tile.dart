@@ -45,7 +45,7 @@ class Tile {
 
   Color get color {
     if (teamId == null) return Colors.grey.shade800;
-    
+
     // Team colors matching the backend
     switch (teamId) {
       case 1:

@@ -87,6 +87,8 @@ test-integration: ## Run integration tests
 format: ## Format code
 	dart format .
 
+fmt: format ## Alias for format (standard command)
+
 .PHONY: format-check
 format-check: ## Check if code is formatted
 	dart format --set-exit-if-changed .
