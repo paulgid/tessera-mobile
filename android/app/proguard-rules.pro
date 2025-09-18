@@ -8,6 +8,12 @@
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
 
+# Keep Google Play Core classes (optional - not actually used but referenced)
+-dontwarn com.google.android.play.core.splitcompat.SplitCompatApplication
+-dontwarn com.google.android.play.core.splitinstall.**
+-dontwarn com.google.android.play.core.tasks.**
+-keep class com.google.android.play.core.** { *; }
+
 # Keep JSON serialization classes
 -keepclassmembers class * {
     @com.google.gson.annotations.SerializedName <fields>;
