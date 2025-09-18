@@ -213,12 +213,11 @@ void main() {
       expect(find.text('Live Now'), findsOneWidget);
       expect(find.text('Starting Soon'), findsOneWidget);
 
-      // Should show trending section only if there are trending mosaics
-      final trendingFinder = find.text('Trending');
-      if (mockMosaics.any((m) => m.status.activeBots > 100)) {
-        expect(trendingFinder, findsOneWidget);
-      } else {
-        expect(trendingFinder, findsNothing);
+      // Note: Trending section is only shown if there are trending mosaics (>100 active bots)
+      // Our mock data has 120 active bots, so trending should appear
+      final hasTrending = mockMosaics.any((m) => m.status.activeBots > 100);
+      if (hasTrending) {
+        expect(find.text('Trending'), findsOneWidget);
       }
     });
   });

@@ -6,6 +6,20 @@ import 'package:tessera_mobile/core/models/mosaic.dart';
 void main() {
   group('Backend Integration Tests', () {
     late MosaicService service;
+    late bool backendAvailable;
+
+    setUpAll(() async {
+      // Check if backend is available
+      try {
+        final response = await http.get(
+          Uri.parse('http://localhost:8081/api/mosaics'),
+        ).timeout(const Duration(seconds: 2));
+        backendAvailable = response.statusCode == 200;
+      } catch (e) {
+        backendAvailable = false;
+        print('Backend not available, skipping integration tests: $e');
+      }
+    });
 
     setUp(() {
       // Use the real backend URL
@@ -20,6 +34,11 @@ void main() {
     });
 
     test('should fetch mosaics from backend', () async {
+      if (!backendAvailable) {
+        markTestSkipped('Backend not available');
+        return;
+      }
+
       // Act
       final mosaics = await service.getMosaics();
 
@@ -57,6 +76,11 @@ void main() {
     });
 
     test('should connect to correct backend URL', () async {
+      if (!backendAvailable) {
+        markTestSkipped('Backend not available');
+        return;
+      }
+
       // This test verifies the URL configuration is correct
       expect(service.baseUrl, 'http://localhost:8081');
 
