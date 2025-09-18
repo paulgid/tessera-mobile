@@ -266,10 +266,13 @@ class _MosaicViewerState extends State<MosaicViewer>
 
   void _animateToScale(double targetScale, Offset focalPoint) {
     final Matrix4 start = _transformController.value;
-    final Matrix4 end = Matrix4.identity()
-      ..translate(focalPoint.dx, focalPoint.dy)
-      ..scale(targetScale)
-      ..translate(-focalPoint.dx, -focalPoint.dy);
+    final Matrix4 end = Matrix4.identity();
+    // ignore: deprecated_member_use
+    end.translate(focalPoint.dx, focalPoint.dy);
+    // ignore: deprecated_member_use
+    end.scale(targetScale, targetScale);
+    // ignore: deprecated_member_use
+    end.translate(-focalPoint.dx, -focalPoint.dy);
 
     _animation = Matrix4Tween(begin: start, end: end).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),

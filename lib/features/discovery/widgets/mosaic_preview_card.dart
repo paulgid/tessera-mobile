@@ -583,8 +583,8 @@ class _MosaicPreviewCardState extends State<MosaicPreviewCard>
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.red.withValues(alpha:
-                  0.5 + 0.2 * _animationController.value,
+                color: Colors.red.withValues(
+                  alpha: 0.5 + 0.2 * _animationController.value,
                 ),
                 blurRadius: 10,
                 spreadRadius: 2,
@@ -598,8 +598,8 @@ class _MosaicPreviewCardState extends State<MosaicPreviewCard>
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha:
-                    0.7 + 0.3 * _animationController.value,
+                  color: Colors.white.withValues(
+                    alpha: 0.7 + 0.3 * _animationController.value,
                   ),
                   shape: BoxShape.circle,
                 ),
@@ -728,7 +728,9 @@ class _QuickPreviewSheet extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),

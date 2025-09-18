@@ -81,6 +81,9 @@ class _IdEntryScreenState extends State<IdEntryScreen> {
     final lastDigit = int.parse(_controllers[5].text);
     if (lastDigit % 2 == 0) {
       // Valid ID - navigate to mosaic
+      final mosaicId = _mosaicId; // Use the getter to construct the full ID
+      // In a real app, we'd pass mosaicId to MosaicViewer
+      debugPrint('Navigating to mosaic: $mosaicId');
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const MosaicViewer()),

@@ -157,7 +157,9 @@ class _SearchScreenState extends State<SearchScreen> {
               ).colorScheme.primaryContainer.withValues(alpha: 0.2),
               border: Border(
                 bottom: BorderSide(
-                  color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.2),
                 ),
               ),
             ),
