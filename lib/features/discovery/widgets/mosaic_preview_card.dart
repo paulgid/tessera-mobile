@@ -126,7 +126,9 @@ class _MosaicPreviewCardState extends State<MosaicPreviewCard>
                     )
                   else if (widget.mosaic.status == MosaicStatus.upcoming)
                     Text(
-                      'in ${_formatDuration(widget.mosaic.startsIn!)}',
+                      widget.mosaic.startsIn != null
+                          ? 'in ${_formatDuration(widget.mosaic.startsIn!)}'
+                          : 'Starting soon',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.green.shade600,

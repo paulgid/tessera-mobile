@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../discovery/discovery_screen.dart';
+import '../discovery/discovery_screen_connected.dart';
 import '../my_mosaics/my_mosaics_screen.dart';
 import '../create/create_mosaic_screen.dart';
 import '../profile/profile_screen.dart';
@@ -16,7 +16,7 @@ class _MainNavigationState extends ConsumerState<MainNavigation> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
-    const DiscoveryScreen(),
+    const ConnectedDiscoveryScreen(),
     const MyMosaicsScreen(),
     const CreateMosaicScreen(),
     const ProfileScreen(),
