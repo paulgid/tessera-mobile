@@ -373,9 +373,9 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
   void _animateToScale(double targetScale, Offset focalPoint) {
     final Matrix4 start = _transformController.value;
     final Matrix4 end = Matrix4.identity()
-      ..translate(focalPoint.dx, focalPoint.dy)
-      ..scale(targetScale, targetScale)
-      ..translate(-focalPoint.dx, -focalPoint.dy);
+      ..translate(focalPoint.dx, focalPoint.dy, 0.0)
+      ..scale(targetScale, targetScale, 1.0)
+      ..translate(-focalPoint.dx, -focalPoint.dy, 0.0);
 
     _animation = Matrix4Tween(begin: start, end: end).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
