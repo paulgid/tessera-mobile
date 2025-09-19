@@ -67,26 +67,29 @@ void main() {
       expect(() => service.subscribeTo('another-mosaic'), returnsNormally);
     });
 
-    test('should handle reconnection without emitting to disposed listeners', () async {
-      // Arrange
-      final states = <ConnectionState>[];
-      final subscription = service.connectionState.listen(
-        (state) => states.add(state),
-      );
+    test(
+      'should handle reconnection without emitting to disposed listeners',
+      () async {
+        // Arrange
+        final states = <ConnectionState>[];
+        final subscription = service.connectionState.listen(
+          (state) => states.add(state),
+        );
 
-      // Connect
-      service.connect(mosaicId: 'test-mosaic');
+        // Connect
+        service.connect(mosaicId: 'test-mosaic');
 
-      // Cancel subscription (simulate widget disposal)
-      subscription.cancel();
+        // Cancel subscription (simulate widget disposal)
+        subscription.cancel();
 
-      // Act - should not throw even with no listeners
-      await service.disconnect();
-      service.connect(mosaicId: 'test-mosaic-2');
+        // Act - should not throw even with no listeners
+        await service.disconnect();
+        service.connect(mosaicId: 'test-mosaic-2');
 
-      // Assert - no crash occurred
-      expect(true, true);
-    });
+        // Assert - no crash occurred
+        expect(true, true);
+      },
+    );
 
     test('should not emit to closed stream controllers', () {
       // Arrange
@@ -96,7 +99,10 @@ void main() {
       service.dispose();
 
       // Assert - attempting to connect after dispose should not throw
-      expect(() => service.connect(mosaicId: 'another-mosaic'), returnsNormally);
+      expect(
+        () => service.connect(mosaicId: 'another-mosaic'),
+        returnsNormally,
+      );
     });
   });
 

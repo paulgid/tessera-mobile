@@ -14,10 +14,12 @@ final webSocketServiceProvider = Provider.autoDispose<WebSocketService>((ref) {
 });
 
 /// Provider for WebSocket connection state
-final webSocketConnectionProvider = StreamProvider.autoDispose<ConnectionState>((ref) {
-  final service = ref.watch(webSocketServiceProvider);
-  return service.connectionState;
-});
+final webSocketConnectionProvider = StreamProvider.autoDispose<ConnectionState>(
+  (ref) {
+    final service = ref.watch(webSocketServiceProvider);
+    return service.connectionState;
+  },
+);
 
 /// Provider for real-time mosaic updates
 final mosaicUpdatesProvider = StreamProvider.autoDispose<MosaicUpdate>((ref) {

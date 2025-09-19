@@ -309,13 +309,17 @@ class WebSocketService {
 
   // Safe methods to add to streams
   void _safeAddToConnectionStream(ConnectionState state) {
-    if (!_isDisposed && !_connectionStateController.isClosed && _connectionStateController.hasListener) {
+    if (!_isDisposed &&
+        !_connectionStateController.isClosed &&
+        _connectionStateController.hasListener) {
       _connectionStateController.add(state);
     }
   }
 
   void _safeAddToMosaicStream(MosaicUpdate update) {
-    if (!_isDisposed && !_mosaicStreamController.isClosed && _mosaicStreamController.hasListener) {
+    if (!_isDisposed &&
+        !_mosaicStreamController.isClosed &&
+        _mosaicStreamController.hasListener) {
       _mosaicStreamController.add(update);
     }
   }
@@ -381,10 +385,6 @@ class TileColor {
   TileColor({required this.r, required this.g, required this.b});
 
   factory TileColor.fromJson(Map<String, dynamic> json) {
-    return TileColor(
-      r: json['r'] ?? 0,
-      g: json['g'] ?? 0,
-      b: json['b'] ?? 0,
-    );
+    return TileColor(r: json['r'] ?? 0, g: json['g'] ?? 0, b: json['b'] ?? 0);
   }
 }
