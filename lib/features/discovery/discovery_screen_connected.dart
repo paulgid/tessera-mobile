@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/mosaic_provider.dart';
+import '../../providers/websocket_provider.dart';
 import '../../core/models/mosaic.dart';
 import 'widgets/featured_banner.dart';
 import 'widgets/mosaic_section.dart';
 import '../search/search_screen.dart';
 import '../search/id_entry_screen.dart';
+import '../common/widgets/connection_indicator.dart';
 import 'discovery_screen.dart' show MosaicPreview;
 import 'discovery_screen.dart' as discovery;
 
@@ -24,18 +26,37 @@ class _ConnectedDiscoveryScreenState
   bool get wantKeepAlive => true;
 
   @override
+  void initState() {
+    super.initState();
+    // Auto-connect to WebSocket when screen initializes
+    Future.microtask(() {
+      ref.read(webSocketNotifierProvider.notifier).connectToMosaic('');
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     super.build(context);
 
     // Watch the auto-refresh to get real-time updates
     ref.watch(mosaicRefreshProvider);
 
+    // Watch WebSocket state for real-time updates
+    ref.watch(webSocketNotifierProvider);
+
     // Get mosaics from backend
     final mosaicsAsync = ref.watch(mosaicsProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('🎨 Tessera'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('🎨 Tessera'),
+            const SizedBox(width: 12),
+            const ConnectionDot(size: 10),
+          ],
+        ),
         centerTitle: true,
         actions: [
           IconButton(
