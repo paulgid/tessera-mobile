@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/websocket_provider.dart';
 import '../../providers/mosaic_provider.dart';
+import '../../providers/game_provider.dart';
 import '../../core/services/websocket_service.dart' as ws;
 
 // Zoom level definitions based on UX design specs
@@ -34,6 +35,7 @@ class TileState {
   final bool isClaimed;
   final double claimIntensity;
   final DateTime lastUpdate;
+  final Map<String, int>? color; // RGB color values
 
   TileState({
     required this.x,
@@ -42,6 +44,7 @@ class TileState {
     required this.isClaimed,
     required this.claimIntensity,
     required this.lastUpdate,
+    this.color,
   });
 }
 
@@ -120,8 +123,57 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
   }
 
   void _connectToMosaic() {
-    // Subscribe to this specific mosaic
-    ref.read(webSocketNotifierProvider.notifier).subscribeTo(widget.mosaicId);
+    // Delay provider modification to avoid modifying during build
+    Future.microtask(() {
+      // Subscribe to this specific mosaic
+      ref.read(webSocketNotifierProvider.notifier).subscribeTo(widget.mosaicId);
+      // Load initial mosaic state
+      _loadInitialMosaicState();
+    });
+  }
+
+  Future<void> _loadInitialMosaicState() async {
+    try {
+      // Fetch initial mosaic state from REST API
+      final apiClient = ref.read(apiClientProvider);
+      // Fetch the actual mosaic data with tiles
+      final response = await apiClient.getMosaicData(widget.mosaicId);
+
+      if (response['tiles'] != null) {
+        final tiles = response['tiles'] as List;
+
+        if (!mounted) return;
+        setState(() {
+          for (final tile in tiles) {
+            final position = tile['position'] ?? {};
+            final x = position['x'] ?? 0;
+            final y = position['y'] ?? 0;
+            final key = '$x,$y';
+
+            Map<String, int>? color;
+            if (tile['color'] != null) {
+              color = {
+                'r': tile['color']['r'] ?? 0,
+                'g': tile['color']['g'] ?? 0,
+                'b': tile['color']['b'] ?? 0,
+              };
+            }
+
+            _tileStates[key] = TileState(
+              x: x,
+              y: y,
+              teamId: tile['owner'],
+              isClaimed: tile['is_claimed'] ?? false,
+              claimIntensity: (tile['claim_intensity'] ?? 0.0).toDouble(),
+              lastUpdate: DateTime.now(),
+              color: color,
+            );
+          }
+        });
+      }
+    } catch (e) {
+      print('Error loading initial mosaic state: $e');
+    }
   }
 
   Future<void> _loadTeamImages() async {
@@ -137,14 +189,18 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
     final elapsed = now.difference(_lastFpsUpdate).inMilliseconds;
 
     if (elapsed > 1000) {
-      setState(() {
-        _fps = (_frameCount * 1000 / elapsed).clamp(0, 120);
-        _frameCount = 0;
-        _lastFpsUpdate = now;
-      });
+      if (mounted) {
+        setState(() {
+          _fps = (_frameCount * 1000 / elapsed).clamp(0, 120);
+          _frameCount = 0;
+          _lastFpsUpdate = now;
+        });
+      }
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => _updateFps());
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _updateFps());
+    }
   }
 
   void _handleTileUpdate(ws.TileUpdate update) {
@@ -159,11 +215,22 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
   }
 
   void _processPendingUpdates() {
-    if (_pendingUpdates.isEmpty) return;
+    if (!mounted || _pendingUpdates.isEmpty) return;
 
     setState(() {
       for (final update in _pendingUpdates) {
         final key = '${update.x},${update.y}';
+
+        // Extract color if present
+        Map<String, int>? color;
+        if (update.color != null) {
+          color = {
+            'r': update.color!.r,
+            'g': update.color!.g,
+            'b': update.color!.b,
+          };
+        }
+
         _tileStates[key] = TileState(
           x: update.x,
           y: update.y,
@@ -171,6 +238,7 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
           isClaimed: update.isClaimed,
           claimIntensity: update.claimIntensity,
           lastUpdate: DateTime.now(),
+          color: color,
         );
       }
       _pendingUpdates.clear();
@@ -372,9 +440,13 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
 
   void _animateToScale(double targetScale, Offset focalPoint) {
     final Matrix4 start = _transformController.value;
+    // ignore: deprecated_member_use
     final Matrix4 end = Matrix4.identity()
+      // ignore: deprecated_member_use
       ..translate(focalPoint.dx, focalPoint.dy, 0.0)
+      // ignore: deprecated_member_use
       ..scale(targetScale, targetScale, 1.0)
+      // ignore: deprecated_member_use
       ..translate(-focalPoint.dx, -focalPoint.dy, 0.0);
 
     _animation = Matrix4Tween(begin: start, end: end).animate(
@@ -396,7 +468,9 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
     // Handle tile updates
     if (wsState.lastTileUpdate != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _handleTileUpdate(wsState.lastTileUpdate!);
+        if (mounted) {
+          _handleTileUpdate(wsState.lastTileUpdate!);
+        }
       });
     }
 
@@ -751,13 +825,16 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
 
   @override
   void dispose() {
-    _transformController.dispose();
-    _animationController.dispose();
+    // Cancel timers first
     _tapTimer?.cancel();
     _updateBatchTimer?.cancel();
 
-    // Unsubscribe from WebSocket
-    ref.read(webSocketNotifierProvider.notifier).unsubscribe();
+    // Dispose animation controllers
+    _animationController.dispose();
+    _transformController.dispose();
+
+    // Note: WebSocket cleanup is handled by autoDispose providers
+    // Don't access ref during disposal to avoid lifecycle issues
 
     super.dispose();
   }
@@ -855,8 +932,20 @@ class RealtimeMosaicPainter extends CustomPainter {
           }
         }
       } else {
-        // Assembly/Complete phase - show team colors
-        if (tile.teamId != null) {
+        // Assembly/Complete phase - show actual tile colors
+        if (tile.color != null) {
+          // Use the actual color from the tile
+          final tilePaint = Paint()
+            ..color = Color.fromARGB(
+              255,
+              tile.color!['r'] ?? 0,
+              tile.color!['g'] ?? 0,
+              tile.color!['b'] ?? 0,
+            )
+            ..style = PaintingStyle.fill;
+          canvas.drawRect(rect, tilePaint);
+        } else if (tile.teamId != null) {
+          // Fallback to team color if no specific color
           final teamPaint = Paint()
             ..color = _getTeamColor(tile.teamId!).withValues(alpha: 0.7)
             ..style = PaintingStyle.fill;

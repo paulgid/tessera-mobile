@@ -702,7 +702,7 @@ class _MosaicPreviewCardState extends State<MosaicPreviewCard>
         ),
       );
     } else {
-      // Use static viewer for non-live mosaics
+      // Use static viewer for non-running mosaics
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const MosaicViewer()),

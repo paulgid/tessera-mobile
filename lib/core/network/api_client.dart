@@ -50,6 +50,16 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> getMosaicData(String mosaicId) async {
+    try {
+      // Fetch the actual mosaic tile data
+      final response = await _dio.get('/api/mosaics/$mosaicId/mosaic');
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   Future<List<dynamic>> listMosaics() async {
     try {
       final response = await _dio.get('/api/mosaics');

@@ -48,6 +48,23 @@ run-web: ## Run on Chrome
 run-web-server: ## Run web server mode (accessible from network)
 	flutter run -d web-server --web-port 3000 --web-hostname 0.0.0.0
 
+.PHONY: run-web-server-8099
+run-web-server-8099: ## Run web server on port 8099 (Claude Code default)
+	flutter run -d web-server --web-port 8099 --web-hostname 0.0.0.0
+
+.PHONY: flutter-restart
+flutter-restart: ## Restart Flutter web server on port 8099
+	@echo "Stopping any existing Flutter processes..."
+	@pkill -f "flutter run" 2>/dev/null || true
+	@sleep 2
+	@echo "Starting Flutter web server on port 8099..."
+	flutter run -d web-server --web-port 8099 --web-hostname 0.0.0.0
+
+.PHONY: flutter-kill
+flutter-kill: ## Kill all Flutter processes
+	@echo "Killing all Flutter processes..."
+	@pkill -f flutter 2>/dev/null || echo "No Flutter processes found"
+
 .PHONY: devices
 devices: ## List all available devices
 	flutter devices
