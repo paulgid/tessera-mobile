@@ -101,6 +101,23 @@ class MosaicActionsNotifier extends StateNotifier<AsyncValue<void>> {
       state = AsyncValue.error(e, stack);
     }
   }
+
+  Future<void> claimTile({
+    required String mosaicId,
+    required int x,
+    required int y,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      await _service.claimTile(mosaicId, x, y);
+      // Refresh the mosaic grid
+      _ref.invalidate(mosaicGridProvider(mosaicId));
+      state = const AsyncValue.data(null);
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+      rethrow; // Rethrow to allow caller to handle the error
+    }
+  }
 }
 
 final mosaicActionsProvider =

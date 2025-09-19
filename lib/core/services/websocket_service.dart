@@ -18,6 +18,7 @@ class WebSocketService {
   String? _currentMosaicId;
   int _reconnectAttempts = 0;
   static const int _maxReconnectAttempts = 5;
+  bool _isDisposed = false;
 
   // Streams
   Stream<MosaicUpdate> get mosaicUpdates => _mosaicStreamController.stream;
@@ -41,7 +42,7 @@ class WebSocketService {
       final uri = Uri.parse(wsUrl);
 
       // Emit connecting state
-      _connectionStateController.add(ConnectionState.connecting);
+      _safeAddToConnectionStream(ConnectionState.connecting);
 
       // Create WebSocket channel
       _channel = WebSocketChannel.connect(uri);
@@ -63,11 +64,11 @@ class WebSocketService {
       _startPingTimer();
 
       // Emit connected state
-      _connectionStateController.add(ConnectionState.connected);
+      _safeAddToConnectionStream(ConnectionState.connected);
       _reconnectAttempts = 0;
     } catch (e) {
       print('WebSocket connection error: $e');
-      _connectionStateController.add(ConnectionState.disconnected);
+      _safeAddToConnectionStream(ConnectionState.disconnected);
       _scheduleReconnect();
     }
   }
@@ -112,6 +113,10 @@ class WebSocketService {
         case 'tile_update':
           _handleTileUpdate(data);
           break;
+        case 'tile_change':
+          // Handle tile_change messages from the server
+          _handleTileChange(data);
+          break;
         case 'phase_change':
           _handlePhaseChange(data);
           break;
@@ -133,7 +138,7 @@ class WebSocketService {
   }
 
   void _handleMosaicUpdate(Map<String, dynamic> data) {
-    _mosaicStreamController.add(
+    _safeAddToMosaicStream(
       MosaicUpdate(
         type: UpdateType.statusUpdate,
         mosaicId: data['mosaicId'],
@@ -143,7 +148,12 @@ class WebSocketService {
   }
 
   void _handleTileUpdate(Map<String, dynamic> data) {
-    _mosaicStreamController.add(
+    TileColor? color;
+    if (data['color'] != null) {
+      color = TileColor.fromJson(data['color']);
+    }
+
+    _safeAddToMosaicStream(
       MosaicUpdate(
         type: UpdateType.tileUpdate,
         mosaicId: data['mosaicId'],
@@ -153,13 +163,75 @@ class WebSocketService {
           teamId: data['teamId'],
           isClaimed: data['is_claimed'] ?? false,
           claimIntensity: (data['claim_intensity'] ?? 0.0).toDouble(),
+          color: color,
         ),
       ),
     );
   }
 
+  void _handleTileChange(Map<String, dynamic> data) {
+    // The server sends tile_change events with batched tile data
+    final tileData = data['data'];
+    if (tileData == null) return;
+
+    // Check if it's a batch update
+    if (tileData['type'] == 'tile_batch' && tileData['tiles'] != null) {
+      final tiles = tileData['tiles'] as List;
+
+      for (final tile in tiles) {
+        // Parse each tile and send individual updates
+        final position = tile['position'] ?? {};
+        final color = tile['color'];
+
+        TileColor? tileColor;
+        if (color != null) {
+          tileColor = TileColor.fromJson(color);
+        }
+
+        _safeAddToMosaicStream(
+          MosaicUpdate(
+            type: UpdateType.tileUpdate,
+            mosaicId: _currentMosaicId ?? '',
+            tileUpdate: TileUpdate(
+              x: position['x'] ?? 0,
+              y: position['y'] ?? 0,
+              teamId: tile['owner'] ?? 0,
+              isClaimed: tile['is_claimed'] ?? false,
+              claimIntensity: (tile['claim_intensity'] ?? 0.0).toDouble(),
+              color: tileColor,
+            ),
+          ),
+        );
+      }
+    } else if (tileData is Map) {
+      // Handle single tile update (old format)
+      final position = tileData['position'] ?? {};
+      final color = tileData['color'];
+
+      TileColor? tileColor;
+      if (color != null) {
+        tileColor = TileColor.fromJson(color);
+      }
+
+      _safeAddToMosaicStream(
+        MosaicUpdate(
+          type: UpdateType.tileUpdate,
+          mosaicId: _currentMosaicId ?? '',
+          tileUpdate: TileUpdate(
+            x: position['x'] ?? 0,
+            y: position['y'] ?? 0,
+            teamId: tileData['owner'] ?? 0,
+            isClaimed: tileData['is_claimed'] ?? false,
+            claimIntensity: (tileData['claim_intensity'] ?? 0.0).toDouble(),
+            color: tileColor,
+          ),
+        ),
+      );
+    }
+  }
+
   void _handlePhaseChange(Map<String, dynamic> data) {
-    _mosaicStreamController.add(
+    _safeAddToMosaicStream(
       MosaicUpdate(
         type: UpdateType.phaseChange,
         mosaicId: data['mosaicId'],
@@ -169,7 +241,7 @@ class WebSocketService {
   }
 
   void _handleGameEnd(Map<String, dynamic> data) {
-    _mosaicStreamController.add(
+    _safeAddToMosaicStream(
       MosaicUpdate(
         type: UpdateType.gameEnd,
         mosaicId: data['mosaicId'],
@@ -229,10 +301,31 @@ class WebSocketService {
       _channel = null;
     }
 
-    _connectionStateController.add(ConnectionState.disconnected);
+    // Only emit disconnected state if not being disposed
+    if (!_isDisposed) {
+      _safeAddToConnectionStream(ConnectionState.disconnected);
+    }
+  }
+
+  // Safe methods to add to streams
+  void _safeAddToConnectionStream(ConnectionState state) {
+    if (!_isDisposed &&
+        !_connectionStateController.isClosed &&
+        _connectionStateController.hasListener) {
+      _connectionStateController.add(state);
+    }
+  }
+
+  void _safeAddToMosaicStream(MosaicUpdate update) {
+    if (!_isDisposed &&
+        !_mosaicStreamController.isClosed &&
+        _mosaicStreamController.hasListener) {
+      _mosaicStreamController.add(update);
+    }
   }
 
   void dispose() {
+    _isDisposed = true;
     disconnect();
     _mosaicStreamController.close();
     _connectionStateController.close();
@@ -271,6 +364,7 @@ class TileUpdate {
   final int teamId;
   final bool isClaimed;
   final double claimIntensity;
+  final TileColor? color;
 
   TileUpdate({
     required this.x,
@@ -278,5 +372,19 @@ class TileUpdate {
     required this.teamId,
     required this.isClaimed,
     required this.claimIntensity,
+    this.color,
   });
+}
+
+/// Tile color
+class TileColor {
+  final int r;
+  final int g;
+  final int b;
+
+  TileColor({required this.r, required this.g, required this.b});
+
+  factory TileColor.fromJson(Map<String, dynamic> json) {
+    return TileColor(r: json['r'] ?? 0, g: json['g'] ?? 0, b: json['b'] ?? 0);
+  }
 }

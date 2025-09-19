@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../discovery_screen.dart';
 import '../../mosaic/mosaic_viewer.dart';
+import '../../mosaic/mosaic_viewer_realtime.dart';
 
 enum CardVariant { compact, standard, featured }
 
@@ -689,10 +690,24 @@ class _MosaicPreviewCardState extends State<MosaicPreviewCard>
   }
 
   void _navigateToMosaic(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const MosaicViewer()),
-    );
+    // Use the realtime viewer for live mosaics
+    if (widget.mosaic.status == MosaicStatus.live) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MosaicViewerRealtime(
+            mosaicId: widget.mosaic.id,
+            gridSize: 100, // Default 100x100 grid
+          ),
+        ),
+      );
+    } else {
+      // Use static viewer for non-running mosaics
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const MosaicViewer()),
+      );
+    }
   }
 
   void _showQuickPreview(BuildContext context) {

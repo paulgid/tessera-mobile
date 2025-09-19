@@ -139,6 +139,32 @@ class MosaicService {
     }
   }
 
+  /// Claim a tile in the mosaic
+  Future<void> claimTile(String mosaicId, int x, int y) async {
+    try {
+      // Generate a temporary user ID (in production, this would be from auth)
+      final userId = 'user_${DateTime.now().millisecondsSinceEpoch}';
+
+      final response = await _client.post(
+        Uri.parse('$baseUrl/api/mosaics/$mosaicId/claim'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'user_id': userId, 'x': x, 'y': y}),
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        final error = response.body.isNotEmpty
+            ? json.decode(response.body)['error'] ?? 'Unknown error'
+            : 'Failed to claim tile';
+        throw Exception(error);
+      }
+    } catch (e) {
+      throw Exception('Failed to claim tile: $e');
+    }
+  }
+
   void dispose() {
     _client.close();
   }
