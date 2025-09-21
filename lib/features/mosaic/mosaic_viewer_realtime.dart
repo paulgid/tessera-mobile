@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -88,9 +87,7 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
   int _currentPhase = 0;
   bool _gameEnded = false;
   int? _winningTeam;
-
-  // Image data for team targets
-  final Map<int, ui.Image?> _teamImages = {};
+  bool _overlayDismissed = false; // Track if user dismissed the overlay
 
   // Minimap
   final bool _showMinimap = true;
@@ -115,9 +112,6 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
     // Connect to WebSocket for this mosaic
     _connectToMosaic();
 
-    // Load team images
-    _loadTeamImages();
-
     // FPS counter
     WidgetsBinding.instance.addPostFrameCallback((_) => _updateFps());
   }
@@ -136,11 +130,46 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
     try {
       // Fetch initial mosaic state from REST API
       final apiClient = ref.read(apiClientProvider);
+
+      // First get the mosaic status to know the phase
+      try {
+        final statusResponse = await apiClient.getMosaicStatus(widget.mosaicId);
+        debugPrint('Mosaic status response: $statusResponse');
+        if (statusResponse['phase'] != null) {
+          setState(() {
+            _currentPhase = statusResponse['phase'] as int;
+            // Phase 4 is Complete phase
+            if (_currentPhase == 4) {
+              _gameEnded = true;
+              // Backend returns 'dominance_leader' as the winning team in phase 4
+              if (statusResponse['dominance_leader'] != null) {
+                _winningTeam = statusResponse['dominance_leader'] as int;
+                debugPrint('Set winning team from dominance_leader: $_winningTeam');
+              } else if (statusResponse['winning_team'] != null) {
+                _winningTeam = statusResponse['winning_team'] as int;
+                debugPrint('Set winning team from winning_team: $_winningTeam');
+              }
+            }
+          });
+          debugPrint('Initial state set - Phase: $_currentPhase, GameEnded: $_gameEnded, WinningTeam: $_winningTeam');
+        }
+      } catch (e) {
+        print('Could not fetch mosaic status: $e');
+      }
+
       // Fetch the actual mosaic data with tiles
       final response = await apiClient.getMosaicData(widget.mosaicId);
 
+      debugPrint('=== Loading Mosaic Data ===');
+      debugPrint('Mosaic ID: ${widget.mosaicId}');
+      debugPrint('Current Phase: $_currentPhase');
+
       if (response['tiles'] != null) {
         final tiles = response['tiles'] as List;
+        debugPrint('Total tiles received: ${tiles.length}');
+
+        int tilesWithColor = 0;
+        int tilesWithoutColor = 0;
 
         if (!mounted) return;
         setState(() {
@@ -157,6 +186,13 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
                 'g': tile['color']['g'] ?? 0,
                 'b': tile['color']['b'] ?? 0,
               };
+              tilesWithColor++;
+            } else {
+              tilesWithoutColor++;
+              // Log some tiles without color for debugging
+              if (tilesWithoutColor <= 5) {
+                debugPrint('Tile at ($x,$y) has no color data. Raw tile: $tile');
+              }
             }
 
             _tileStates[key] = TileState(
@@ -170,15 +206,14 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
             );
           }
         });
+
+        debugPrint('Tiles with color: $tilesWithColor');
+        debugPrint('Tiles without color: $tilesWithoutColor');
+        debugPrint('=== End Loading Mosaic Data ===');
       }
     } catch (e) {
       print('Error loading initial mosaic state: $e');
     }
-  }
-
-  Future<void> _loadTeamImages() async {
-    // Load placeholder images for now
-    // In production, these would be fetched from the backend
   }
 
   void _updateFps() {
@@ -356,7 +391,7 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
             ] else ...[
               Text(
                 'Team: ${tileState?.teamId ?? "None"}',
-                style: TextStyle(color: _getTeamColor(tileState?.teamId)),
+                style: const TextStyle(color: Colors.grey),
               ),
             ],
             const Spacer(),
@@ -425,18 +460,6 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
     }
   }
 
-  Color _getTeamColor(int? teamId) {
-    if (teamId == null) return Colors.grey;
-    final colors = [
-      Colors.red,
-      Colors.blue,
-      Colors.green,
-      Colors.yellow,
-      Colors.purple,
-      Colors.orange,
-    ];
-    return colors[teamId % colors.length];
-  }
 
   void _animateToScale(double targetScale, Offset focalPoint) {
     final Matrix4 start = _transformController.value;
@@ -474,10 +497,26 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
       });
     }
 
-    // Update phase
-    _currentPhase = wsState.currentPhase ?? 0;
-    _gameEnded = wsState.gameEnded;
-    _winningTeam = wsState.winningTeam;
+    // Update phase only if WebSocket provides a new value (don't overwrite with 0)
+    if (wsState.currentPhase != null) {
+      _currentPhase = wsState.currentPhase!;
+    }
+    // Update game ended state if provided
+    if (wsState.gameEnded == true && !_gameEnded) {
+      _gameEnded = true;
+      _winningTeam = wsState.winningTeam;
+      debugPrint('Game ended via WebSocket - WinningTeam: $_winningTeam');
+    }
+
+    // Also check if we're in phase 4 but haven't set game ended yet
+    if (_currentPhase == 4 && !_gameEnded) {
+      debugPrint('Detected phase 4 but gameEnded is false - fixing state');
+      _gameEnded = true;
+      // If we don't have a winning team yet, try to get it from status
+      if (_winningTeam == null) {
+        _loadInitialMosaicState();
+      }
+    }
 
     return Scaffold(
       backgroundColor: Colors.grey[900],
@@ -513,8 +552,8 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
               ),
             ),
 
-          // Game end overlay
-          if (_gameEnded) _buildGameEndOverlay(),
+          // Game end overlay (only show if not dismissed)
+          if (_gameEnded && !_overlayDismissed) _buildGameEndOverlay(),
         ],
       ),
     );
@@ -557,7 +596,8 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
             selectedTile: _selectedTile,
             gridSize: widget.gridSize,
             currentPhase: _currentPhase,
-            teamImages: _teamImages,
+            winningTeam: _winningTeam,
+            gameEnded: _gameEnded,
           ),
         ),
       ),
@@ -668,8 +708,11 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
       case 0:
         return 'Claim';
       case 1:
-        return 'Assembly';
+        return 'Formation';
       case 2:
+      case 3:
+        return 'Assembly';
+      case 4:
         return 'Complete';
       default:
         return 'Unknown';
@@ -681,8 +724,11 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
       case 0:
         return Colors.blue;
       case 1:
-        return Colors.orange;
+        return Colors.purple;
       case 2:
+      case 3:
+        return Colors.orange;
+      case 4:
         return Colors.green;
       default:
         return Colors.grey;
@@ -785,36 +831,66 @@ class _MosaicViewerRealtimeState extends ConsumerState<MosaicViewerRealtime>
   }
 
   Widget _buildGameEndOverlay() {
-    return Container(
-      color: Colors.black54,
-      child: Center(
+    // Show a dismissible notification at the top instead of blocking the whole view
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 80,
+      left: 16,
+      right: 16,
+      child: GestureDetector(
+        onTap: () {
+          // Dismiss the overlay notification
+          setState(() {
+            _overlayDismissed = true;
+          });
+        },
         child: Container(
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.emoji_events, size: 64, color: Colors.amber),
-              const SizedBox(height: 16),
-              Text(
-                'Game Complete!',
-                style: Theme.of(context).textTheme.headlineMedium,
+            color: Colors.green.shade800.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Team $_winningTeam Wins!',
-                style: TextStyle(
-                  fontSize: 20,
-                  color: _getTeamColor(_winningTeam),
+            ],
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.emoji_events, size: 32, color: Colors.amber),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Game Complete!',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Team $_winningTeam Victory! Tap to dismiss.',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Back to Lobby'),
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.white70),
+                onPressed: () {
+                  setState(() {
+                    _overlayDismissed = true;
+                  });
+                },
               ),
             ],
           ),
@@ -847,7 +923,8 @@ class RealtimeMosaicPainter extends CustomPainter {
   final Offset? selectedTile;
   final int gridSize;
   final int currentPhase;
-  final Map<int, ui.Image?> teamImages;
+  final int? winningTeam;
+  final bool gameEnded;
 
   RealtimeMosaicPainter({
     required this.tileStates,
@@ -856,7 +933,8 @@ class RealtimeMosaicPainter extends CustomPainter {
     required this.selectedTile,
     required this.gridSize,
     required this.currentPhase,
-    required this.teamImages,
+    this.winningTeam,
+    this.gameEnded = false,
   });
 
   @override
@@ -869,13 +947,29 @@ class RealtimeMosaicPainter extends CustomPainter {
       Paint()..color = Colors.grey[800]!,
     );
 
-    // Draw tiles based on zoom level
+    // Always draw tiles based on zoom level - this shows the actual mosaic state
     if (zoomLevel == ZoomLevel.interaction || zoomLevel == ZoomLevel.detail) {
       _drawInteractionLevel(canvas, size, tileSize);
     } else if (zoomLevel == ZoomLevel.navigation) {
       _drawNavigationLevel(canvas, size);
     } else {
       _drawOverviewLevel(canvas, size);
+    }
+
+    // When game is complete, optionally add a subtle overlay effect
+    if (currentPhase == 4 && gameEnded) {
+      // Add a very subtle vignette effect to indicate completion
+      final gradient = RadialGradient(
+        center: Alignment.center,
+        radius: 1.0,
+        colors: [
+          Colors.transparent,
+          Colors.black.withValues(alpha: 0.1),
+        ],
+      );
+      final paint = Paint()
+        ..shader = gradient.createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+      canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
     }
   }
 
@@ -902,55 +996,60 @@ class RealtimeMosaicPainter extends CustomPainter {
         tileSize,
       );
 
-      if (currentPhase == 0) {
-        // Claim phase - show claim intensity
-        if (tile.isClaimed) {
-          final claimPaint = Paint()
-            ..color = Colors.blue.withValues(alpha: tile.claimIntensity * 0.5)
-            ..style = PaintingStyle.fill;
-          canvas.drawRect(rect, claimPaint);
+      // First priority: If we have actual color data, always use it
+      if (tile.color != null) {
+        // Use the actual color from the tile
+        final tilePaint = Paint()
+          ..color = Color.fromARGB(
+            255,
+            tile.color!['r'] ?? 0,
+            tile.color!['g'] ?? 0,
+            tile.color!['b'] ?? 0,
+          )
+          ..style = PaintingStyle.fill;
+        canvas.drawRect(rect, tilePaint);
+      }
+      // Second priority: If it's claim phase and tile is claimed, show claim visualization
+      else if (currentPhase == 0 && tile.isClaimed) {
+        final claimPaint = Paint()
+          ..color = Colors.blue.withValues(alpha: tile.claimIntensity * 0.5)
+          ..style = PaintingStyle.fill;
+        canvas.drawRect(rect, claimPaint);
 
-          // Draw claim pattern
-          final patternPaint = Paint()
-            ..color = Colors.blue.withValues(alpha: tile.claimIntensity)
-            ..strokeWidth = 2
-            ..style = PaintingStyle.stroke;
+        // Draw claim pattern
+        final patternPaint = Paint()
+          ..color = Colors.blue.withValues(alpha: tile.claimIntensity)
+          ..strokeWidth = 2
+          ..style = PaintingStyle.stroke;
 
-          // Draw diagonal lines for claimed tiles
-          for (int i = 0; i < 3; i++) {
-            final offset = (i + 1) * tileSize / 4;
-            canvas.drawLine(
-              rect.topLeft + Offset(offset, 0),
-              rect.topLeft + Offset(0, offset),
-              patternPaint,
-            );
-            canvas.drawLine(
-              rect.bottomRight - Offset(offset, 0),
-              rect.bottomRight - Offset(0, offset),
-              patternPaint,
-            );
-          }
+        // Draw diagonal lines for claimed tiles
+        for (int i = 0; i < 3; i++) {
+          final offset = (i + 1) * tileSize / 4;
+          canvas.drawLine(
+            rect.topLeft + Offset(offset, 0),
+            rect.topLeft + Offset(0, offset),
+            patternPaint,
+          );
+          canvas.drawLine(
+            rect.bottomRight - Offset(offset, 0),
+            rect.bottomRight - Offset(0, offset),
+            patternPaint,
+          );
         }
-      } else {
-        // Assembly/Complete phase - show actual tile colors
-        if (tile.color != null) {
-          // Use the actual color from the tile
-          final tilePaint = Paint()
-            ..color = Color.fromARGB(
-              255,
-              tile.color!['r'] ?? 0,
-              tile.color!['g'] ?? 0,
-              tile.color!['b'] ?? 0,
-            )
-            ..style = PaintingStyle.fill;
-          canvas.drawRect(rect, tilePaint);
-        } else if (tile.teamId != null) {
-          // Fallback to team color if no specific color
-          final teamPaint = Paint()
-            ..color = _getTeamColor(tile.teamId!).withValues(alpha: 0.7)
-            ..style = PaintingStyle.fill;
-          canvas.drawRect(rect, teamPaint);
-        }
+      }
+      // Third priority: If tile is claimed but no color, only show blue in claim phase
+      else if (tile.isClaimed && currentPhase == 0) {
+        final claimPaint = Paint()
+          ..color = Colors.blue.withValues(alpha: tile.claimIntensity * 0.3)
+          ..style = PaintingStyle.fill;
+        canvas.drawRect(rect, claimPaint);
+      }
+      // Fallback: Show grey for tiles with team but no color
+      else if (tile.teamId != null) {
+        final teamPaint = Paint()
+          ..color = Colors.grey.withValues(alpha: 0.3)
+          ..style = PaintingStyle.fill;
+        canvas.drawRect(rect, teamPaint);
       }
 
       // Animate recently updated tiles
@@ -999,45 +1098,52 @@ class RealtimeMosaicPainter extends CustomPainter {
       canvas.drawLine(Offset(0, x), Offset(size.width, x), chunkPaint);
     }
 
-    // Aggregate tile data into chunks
-    final Map<String, double> chunkIntensity = {};
-    final Map<String, int?> chunkTeams = {};
+    // Draw each chunk with averaged colors
+    for (int chunkX = 0; chunkX < gridSize / chunkSize; chunkX++) {
+      for (int chunkY = 0; chunkY < gridSize / chunkSize; chunkY++) {
+        int totalR = 0, totalG = 0, totalB = 0;
+        int validTileCount = 0;
 
-    for (final entry in tileStates.entries) {
-      final tile = entry.value;
-      final chunkX = (tile.x / chunkSize).floor();
-      final chunkY = (tile.y / chunkSize).floor();
-      final chunkKey = '$chunkX,$chunkY';
+        // Average the colors in this chunk using the SAME logic as interaction level
+        for (int x = chunkX * chunkSize; x < (chunkX + 1) * chunkSize && x < gridSize; x++) {
+          for (int y = chunkY * chunkSize; y < (chunkY + 1) * chunkSize && y < gridSize; y++) {
+            final tileKey = '$x,$y';
+            final tile = tileStates[tileKey];
 
-      if (currentPhase == 0) {
-        // Accumulate claim intensity
-        chunkIntensity[chunkKey] =
-            (chunkIntensity[chunkKey] ?? 0) + (tile.isClaimed ? 1 : 0);
-      } else {
-        // Track dominant team
-        chunkTeams[chunkKey] = tile.teamId;
+            if (tile != null) {
+              // ONLY average actual color data from tiles, not claim visualizations
+              // This ensures navigation view shows the actual image colors only
+              if (tile.color != null) {
+                totalR += tile.color!['r'] ?? 0;
+                totalG += tile.color!['g'] ?? 0;
+                totalB += tile.color!['b'] ?? 0;
+                validTileCount++;
+              }
+            }
+          }
+        }
+
+        // Draw the averaged color
+        if (validTileCount > 0) {
+          final avgR = (totalR / validTileCount).round().clamp(0, 255);
+          final avgG = (totalG / validTileCount).round().clamp(0, 255);
+          final avgB = (totalB / validTileCount).round().clamp(0, 255);
+
+          final paint = Paint()
+            ..color = Color.fromARGB(255, avgR, avgG, avgB)
+            ..style = PaintingStyle.fill;
+
+          canvas.drawRect(
+            Rect.fromLTWH(
+              chunkX * chunkPixelSize,
+              chunkY * chunkPixelSize,
+              chunkPixelSize,
+              chunkPixelSize,
+            ),
+            paint,
+          );
+        }
       }
-    }
-
-    // Draw chunks
-    for (final entry in chunkIntensity.entries) {
-      final parts = entry.key.split(',');
-      final chunkX = int.parse(parts[0]);
-      final chunkY = int.parse(parts[1]);
-
-      final rect = Rect.fromLTWH(
-        chunkX * chunkPixelSize,
-        chunkY * chunkPixelSize,
-        chunkPixelSize,
-        chunkPixelSize,
-      );
-
-      final intensity = entry.value / (chunkSize * chunkSize);
-      final paint = Paint()
-        ..color = Colors.blue.withValues(alpha: intensity * 0.5)
-        ..style = PaintingStyle.fill;
-
-      canvas.drawRect(rect, paint);
     }
   }
 
@@ -1048,63 +1154,54 @@ class RealtimeMosaicPainter extends CustomPainter {
 
     for (int blockX = 0; blockX < gridSize / blockSize; blockX++) {
       for (int blockY = 0; blockY < gridSize / blockSize; blockY++) {
-        int claimCount = 0;
-        int? dominantTeam;
-        final Map<int, int> teamCounts = {};
+        // For completed mosaics, just copy what the interaction level does
+        // Iterate through all tiles in this block and average their displayed colors
+        int totalR = 0, totalG = 0, totalB = 0;
+        int validTileCount = 0;
 
-        // Count tiles in this block
-        for (int x = blockX * blockSize; x < (blockX + 1) * blockSize; x++) {
-          for (int y = blockY * blockSize; y < (blockY + 1) * blockSize; y++) {
+        for (int x = blockX * blockSize; x < (blockX + 1) * blockSize && x < gridSize; x++) {
+          for (int y = blockY * blockSize; y < (blockY + 1) * blockSize && y < gridSize; y++) {
             final tileKey = '$x,$y';
             final tile = tileStates[tileKey];
+
             if (tile != null) {
-              if (tile.isClaimed) claimCount++;
-              if (tile.teamId != null) {
-                teamCounts[tile.teamId!] = (teamCounts[tile.teamId!] ?? 0) + 1;
+              // ONLY average actual color data from tiles, not claim visualizations
+              // This ensures zoom-out shows the actual image, not mixed with blue claims
+              if (tile.color != null) {
+                // Only count tiles with actual color data
+                totalR += tile.color!['r'] ?? 0;
+                totalG += tile.color!['g'] ?? 0;
+                totalB += tile.color!['b'] ?? 0;
+                validTileCount++;
               }
             }
           }
         }
 
-        // Find dominant team
-        if (teamCounts.isNotEmpty) {
-          dominantTeam = teamCounts.entries
-              .reduce((a, b) => a.value > b.value ? a : b)
-              .key;
+        // Draw the averaged color for this block
+        if (validTileCount > 0) {
+          final avgR = (totalR / validTileCount).round().clamp(0, 255);
+          final avgG = (totalG / validTileCount).round().clamp(0, 255);
+          final avgB = (totalB / validTileCount).round().clamp(0, 255);
+
+          final paint = Paint()
+            ..color = Color.fromARGB(255, avgR, avgG, avgB)
+            ..style = PaintingStyle.fill;
+
+          canvas.drawRect(
+            Rect.fromLTWH(
+              blockX * blockPixelSize,
+              blockY * blockPixelSize,
+              blockPixelSize,
+              blockPixelSize,
+            ),
+            paint,
+          );
         }
-
-        final intensity = claimCount / (blockSize * blockSize);
-
-        final paint = Paint()
-          ..color = dominantTeam != null
-              ? _getTeamColor(dominantTeam).withValues(alpha: intensity * 0.7)
-              : Colors.blue.withValues(alpha: intensity * 0.5)
-          ..style = PaintingStyle.fill;
-
-        canvas.drawRect(
-          Rect.fromLTWH(
-            blockX * blockPixelSize,
-            blockY * blockPixelSize,
-            blockPixelSize,
-            blockPixelSize,
-          ),
-          paint,
-        );
       }
     }
   }
 
-  Color _getTeamColor(int teamId) {
-    final colors = [
-      Colors.red,
-      Colors.blue,
-      Colors.green,
-      Colors.yellow,
-      Colors.purple,
-      Colors.orange,
-    ];
-    return colors[teamId % colors.length];
-  }
 
   @override
   bool shouldRepaint(RealtimeMosaicPainter oldDelegate) {
@@ -1143,21 +1240,39 @@ class MinimapPainter extends CustomPainter {
     for (final entry in tileStates.entries) {
       final tile = entry.value;
 
-      final paint = Paint()
-        ..color = tile.teamId != null
-            ? _getTeamColor(tile.teamId!).withValues(alpha: 0.8)
-            : Colors.blue.withValues(alpha: tile.claimIntensity)
-        ..style = PaintingStyle.fill;
+      // Show actual tile colors in minimap, same as main view
+      Color? tileColor;
+      if (tile.color != null) {
+        // Show actual color if available
+        tileColor = Color.fromARGB(
+          255,
+          tile.color!['r'] ?? 0,
+          tile.color!['g'] ?? 0,
+          tile.color!['b'] ?? 0,
+        );
+      } else if (tile.isClaimed) {
+        // Only show blue for claimed tiles without color data
+        tileColor = Colors.blue.withValues(alpha: tile.claimIntensity * 0.8);
+      } else if (tile.teamId != null) {
+        // Grey for tiles with team but no color
+        tileColor = Colors.grey.withValues(alpha: 0.5);
+      }
 
-      canvas.drawRect(
-        Rect.fromLTWH(
-          tile.x * pixelSize,
-          tile.y * pixelSize,
-          pixelSize,
-          pixelSize,
-        ),
-        paint,
-      );
+      if (tileColor != null) {
+        final paint = Paint()
+          ..color = tileColor
+          ..style = PaintingStyle.fill;
+
+        canvas.drawRect(
+          Rect.fromLTWH(
+            tile.x * pixelSize,
+            tile.y * pixelSize,
+            pixelSize,
+            pixelSize,
+          ),
+          paint,
+        );
+      }
     }
 
     // Draw viewport indicator
@@ -1186,17 +1301,6 @@ class MinimapPainter extends CustomPainter {
     canvas.drawRect(rect, viewportPaint);
   }
 
-  Color _getTeamColor(int teamId) {
-    final colors = [
-      Colors.red,
-      Colors.blue,
-      Colors.green,
-      Colors.yellow,
-      Colors.purple,
-      Colors.orange,
-    ];
-    return colors[teamId % colors.length];
-  }
 
   @override
   bool shouldRepaint(MinimapPainter oldDelegate) {
